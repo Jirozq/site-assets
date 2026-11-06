@@ -1,0 +1,3 @@
+# site-assets
+
+static assets.
