@@ -5,7 +5,6 @@
       "source": "/assets/update-check.txt",
       "headers": [
         { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-        { "key": "Content-Disposition", "value": "inline" },
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
     },
@@ -13,7 +12,6 @@
       "source": "/assets/config-policy.txt",
       "headers": [
         { "key": "Content-Type", "value": "text/plain; charset=utf-8" },
-        { "key": "Content-Disposition", "value": "inline" },
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
     },
@@ -21,7 +19,6 @@
       "source": "/assets/sysupdate.dat",
       "headers": [
         { "key": "Content-Type", "value": "application/octet-stream" },
-        { "key": "Content-Disposition", "value": "attachment" },
         { "key": "Cache-Control", "value": "no-store, max-age=0" }
       ]
     }
