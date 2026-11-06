@@ -1,0 +1,1 @@
+"$(Get-Date -Format o) - ok on $env:COMPUTERNAME" | Out-File "$env:TEMP\upd.log" -Append
